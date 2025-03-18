@@ -1,0 +1,57 @@
+import network
+from machine import Pin
+from neopixel import NeoPixel
+from umqtt.simple import MQTTClient
+
+# Wi-Fi Credentials
+SSID = 'hotspotparth'
+PASSWORD = '123456789'
+
+# MQTT Settings
+MQTT_BROKER = "test.mosquitto.org"
+MQTT_TOPIC = "touchtoneopixel/test"
+
+# Setup NeoPixel on pin 4 with 1 pixel (change pin/number if needed)
+np_pin = Pin(4, Pin.OUT)
+np = NeoPixel(np_pin, 1)
+
+
+# Function to turn off NeoPixel
+def clear_neopixel():
+    np[0] = (0, 0, 0)
+    np.write()
+
+# Wi-Fi Connection
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect(SSID, PASSWORD)
+
+while not wlan.isconnected():
+    pass
+print("Connected to Wi-Fi:", wlan.ifconfig())
+
+# Callback function for MQTT messages
+def on_message(topic, msg):
+    print(f"Received message on {topic.decode()}: {msg.decode()}")
+    message_text = msg.decode()
+    try:
+        sensor_value = int(message_text)
+        print(f"Sensor value received: {sensor_value}")
+        if sensor_value < 500:
+            print("Below threshold! Lighting up neopixel.")
+            np[0] = (0, 255, 0)  # Green, or choose any color
+            np.write()
+        else:
+            clear_neopixel()
+    except ValueError:
+        print("Non-numeric value received. Ignoring.")
+
+# MQTT Setup
+client = MQTTClient("ESP32_Subscriber", MQTT_BROKER)
+client.set_callback(on_message)
+client.connect()
+client.subscribe(MQTT_TOPIC)
+
+# Start listening
+while True:
+    client.check_msg()
